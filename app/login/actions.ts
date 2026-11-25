@@ -22,7 +22,7 @@ export async function teamLogin(_prev: Res | undefined, formData: FormData): Pro
     .from("teams")
     .select("id, team_code, reg_id, leader_name, college_id, group_name, password")
     .eq("team_code", teamCode)
-    .maybeSingle();
+    .single();
 
   if (error) {
     console.error("Team login lookup failed:", error.message);

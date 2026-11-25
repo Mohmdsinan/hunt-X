@@ -24,6 +24,12 @@ export function TeamHeaderClient({ initialSession }: TeamHeaderClientProps) {
               <span className="text-sm font-medium">
                 {initialSession.teamCode} - {initialSession.leaderName}
               </span>
+              <Link
+                href="/team"
+                className="text-sm rounded bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700"
+              >
+                Scan QR
+              </Link>
               <form action={logoutAction}>
                 <button
                   type="submit"
