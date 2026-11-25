@@ -1,7 +1,9 @@
 "use client";
+import { deleteTeam, setGroup, updateTeam } from "./actions";
+import { addTeam } from "./import-actions";
+import ImportPanel from "./import-panel";
 
 import { useMemo, useState, useTransition } from "react";
-import { addTeam, deleteTeam, setGroup, updateTeam } from "./actions";
 
 type Team = {
   id: string;
@@ -32,6 +34,7 @@ export default function TeamsManager({
     group_name: "",
   });
   const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [add, setAdd] = useState({
     reg_id: "",
     leader_name: "",
@@ -168,7 +171,16 @@ export default function TeamsManager({
         >
           {showAdd ? "Close" : "Add team"}
         </button>
+        <button
+          onClick={() => setShowImport(!showImport)}
+          className="rounded border px-4 py-3"
+        >
+          {showImport ? "Close import" : "Import file"}
+        </button>
+      
       </div>
+      
+      {showImport && <ImportPanel />}
 
       {showAdd && (
         <div className="grid gap-2 rounded border p-3 sm:grid-cols-2">

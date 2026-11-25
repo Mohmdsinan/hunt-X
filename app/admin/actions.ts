@@ -93,69 +93,6 @@ export async function updateTeam(
   return { ok: true, message: "Team saved." };
 }
 
-export async function addTeam(input: {
-  reg_id: string;
-  leader_name: string;
-  college_id: number | null;
-  new_college: string;
-  group_name: string | null;
-}): Promise<Res> {
-  if (!(await isAdmin())) return NOT_ALLOWED;
-  const reg_id = input.reg_id.trim();
-  const leader_name = input.leader_name.trim();
-  const newCollege = input.new_college.trim();
-  if (!reg_id || !leader_name) {
-    return { ok: false, message: "Reg ID and leader name are required." };
-  }
-  const g = parseGroup(input.group_name);
-  if (g === "bad") return { ok: false, message: "Group must be A, B, C or D." };
-
-  const db = createAdminClient();
-
-  // Find or make the college
-  let collegeId = input.college_id;
-  if (newCollege) {
-    const found = await db
-      .from("colleges")
-      .select("id")
-      .eq("name", newCollege)
-      .maybeSingle();
-    if (found.data) {
-      collegeId = found.data.id;
-    } else {
-      const made = await db
-        .from("colleges")
-        .insert({ name: newCollege })
-        .select("id")
-        .single();
-      if (made.error) return { ok: false, message: dbMessage(made.error) };
-      collegeId = made.data.id;
-    }
-  }
-  if (!collegeId) return { ok: false, message: "Choose a college." };
-
-  // Make the next team code (TH26, TH27, ...)
-  const codes = await db.from("teams").select("team_code");
-  if (codes.error) return { ok: false, message: dbMessage(codes.error) };
-  let max = 0;
-  for (const row of codes.data ?? []) {
-    const n = parseInt(row.team_code.replace(/\D/g, ""), 10);
-    if (n > max) max = n;
-  }
-  const team_code = "TH" + String(max + 1).padStart(2, "0");
-
-  const { error } = await db.from("teams").insert({
-    team_code,
-    reg_id,
-    leader_name,
-    college_id: collegeId,
-    group_name: g,
-  });
-  if (error) return { ok: false, message: dbMessage(error) };
-
-  revalidatePath("/admin");
-  return { ok: true, message: `Team added with code ${team_code}.` };
-}
 
 export async function deleteTeam(id: string): Promise<Res> {
   if (!(await isAdmin())) return NOT_ALLOWED;
