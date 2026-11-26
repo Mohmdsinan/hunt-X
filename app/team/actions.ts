@@ -6,9 +6,15 @@ import { getTeamSession } from "@/lib/team-auth";
 export interface TeamQrResult {
   ok: boolean;
   message: string;
-  reason?: "invalid_qr" | "duplicate" | "max_scans";
+  reason?: "invalid_qr" | "duplicate" | "max_scans" | "disqualified";
   scanCount?: number;
   questionCode?: string;
+  disqualificationReason?: string | null;
+}
+
+export interface TeamAccessStatus {
+  isDisqualified: boolean;
+  disqualificationReason: string | null;
 }
 
 /**
@@ -42,7 +48,7 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
   // First, get the team's group
   const { data: team, error: teamError } = await supabase
     .from("teams")
-    .select("group_name")
+    .select("group_name, is_disqualified, disqualification_reason")
     .eq("id", session.teamId)
     .maybeSingle();
 
@@ -61,6 +67,15 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
       teamCode: session.teamCode,
     });
     return { ok: false, message: "Could not load team details. Please contact an organizer." };
+  }
+
+  if (team.is_disqualified) {
+    return {
+      ok: false,
+      message: "You are disqualified",
+      reason: "disqualified",
+      disqualificationReason: team.disqualification_reason,
+    };
   }
 
   if (!team.group_name) {
@@ -113,6 +128,13 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
   });
 
   if (error) {
+    if (error.message.includes("TEAM_DISQUALIFIED")) {
+      return {
+        ok: false,
+        message: "You are disqualified",
+        reason: "disqualified",
+      };
+    }
     if (error.message.includes("MAX_SCANS_REACHED")) {
       return {
         ok: false,
@@ -160,6 +182,38 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
     ok: false,
     message: "ഇതല്ല, വേറെ വല്ലതും നോക്ക്",
     reason: "invalid_qr",
+  };
+}
+
+export async function getTeamAccessStatus(): Promise<TeamAccessStatus | null> {
+  const session = await getTeamSession();
+  if (!session) return null;
+
+  const { data: team, error } = await createAdminClient()
+    .from("teams")
+    .select("is_disqualified, disqualification_reason")
+    .eq("id", session.teamId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Team access status lookup failed:", {
+      teamId: session.teamId,
+      code: error.code,
+      message: error.message,
+    });
+    throw new Error("Could not verify team access.");
+  }
+  if (!team) {
+    console.error("Team session references a missing database record:", {
+      teamId: session.teamId,
+      teamCode: session.teamCode,
+    });
+    throw new Error("Could not verify team access.");
+  }
+
+  return {
+    isDisqualified: team.is_disqualified,
+    disqualificationReason: team.disqualification_reason,
   };
 }
 

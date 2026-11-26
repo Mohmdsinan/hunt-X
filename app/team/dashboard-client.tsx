@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { checkTeamQr, getTeamQuestionProgress } from "./actions";
+import { teamLogout } from "@/app/login/actions";
+import { checkTeamQr, getTeamAccessStatus, getTeamQuestionProgress } from "./actions";
 import { QRScanner } from "@/components/QRScanner";
 
 export function TeamDashboardClient() {
@@ -9,9 +10,10 @@ export function TeamDashboardClient() {
   const [result, setResult] = useState<{
     ok: boolean;
     message: string;
-    reason?: "invalid_qr" | "duplicate" | "max_scans";
+    reason?: "invalid_qr" | "duplicate" | "max_scans" | "disqualified";
     scanCount?: number;
     questionCode?: string;
+    disqualificationReason?: string | null;
   } | null>(null);
   const [checking, setChecking] = useState(false);
   const [lastScanned, setLastScanned] = useState("");
@@ -21,6 +23,9 @@ export function TeamDashboardClient() {
     scannedQuestionCodes: string[];
   } | null>(null);
   const [progressError, setProgressError] = useState<string | null>(null);
+  const [disqualification, setDisqualification] = useState<{
+    reason: string | null;
+  } | null>(null);
   const wrongQrAudioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
@@ -38,6 +43,36 @@ export function TeamDashboardClient() {
 
     return () => {
       active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let checkingAccess = false;
+    const checkAccess = async () => {
+      if (checkingAccess) return;
+      checkingAccess = true;
+      try {
+        const status = await getTeamAccessStatus();
+        if (active) {
+          setDisqualification(
+            status?.isDisqualified ? { reason: status.disqualificationReason } : null
+          );
+        }
+      } catch (error: unknown) {
+        console.error("Could not verify team access:", error);
+      } finally {
+        checkingAccess = false;
+      }
+    };
+
+    void checkAccess();
+    const interval = window.setInterval(() => {
+      if (!document.hidden) void checkAccess();
+    }, 5_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
     };
   }, []);
 
@@ -66,6 +101,9 @@ export function TeamDashboardClient() {
     try {
       const res = await checkTeamQr(normalizedQuestionCode, normalizedSecret);
       setResult(res);
+      if (res.reason === "disqualified") {
+        setDisqualification({ reason: res.disqualificationReason ?? null });
+      }
       if (res.reason === "invalid_qr" && wrongQrAudioRef.current) {
         wrongQrAudioRef.current.currentTime = 0;
         try {
@@ -101,6 +139,26 @@ export function TeamDashboardClient() {
   const scannedQuestionSet = new Set(scannedQuestions);
   const scannedProgressCount =
     questionProgress?.questionCodes.filter((code) => scannedQuestionSet.has(code)).length ?? 0;
+
+  if (disqualification) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 text-white">
+        <section className="w-full max-w-md rounded-2xl border border-red-500/50 bg-red-950/50 p-7 text-center shadow-xl shadow-red-950/20">
+          <h1 className="text-2xl font-bold text-red-200">You are disqualified</h1>
+          {disqualification.reason && (
+            <p className="mt-3 text-sm text-red-200/80">
+              Reason: {disqualification.reason}
+            </p>
+          )}
+          <form action={teamLogout} className="mt-6">
+            <button className="rounded-lg border border-red-300/30 px-5 py-2.5 font-medium text-red-100 transition hover:bg-red-900/50">
+              Logout
+            </button>
+          </form>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 bg-zinc-950 text-white">

@@ -1,5 +1,12 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Team Disqualification
+
+Before using `/admin/disqualify`, apply
+[`supabase/migrations/20261126132200_team_disqualification.sql`](./supabase/migrations/20261126132200_team_disqualification.sql)
+to the Supabase database. The migration adds the team status/reason fields and
+blocks new QR scan inserts for disqualified teams.
+
 ## Getting Started
 
 First, run the development server:

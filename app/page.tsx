@@ -54,7 +54,10 @@ async function Leaderboard() {
     { data: teams, error: teamsError },
     { data: scans, error: scansError },
   ] = await Promise.all([
-    supabase.from("teams").select("id, team_code, group_name"),
+    supabase
+      .from("teams")
+      .select("id, team_code, group_name, is_disqualified")
+      .eq("is_disqualified", false),
     supabase.from("team_qr_scans").select("team_id, scanned_at"),
   ]);
 

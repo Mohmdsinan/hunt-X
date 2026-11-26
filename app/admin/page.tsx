@@ -72,6 +72,19 @@ async function AdminHub() {
             </Link>
 
             <Link
+              href="/admin/disqualify"
+              className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-rose-500/60 hover:bg-zinc-900/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-500"
+            >
+              <h3 className="text-xl font-semibold text-white">Disqualify Teams</h3>
+              <p className="mt-2 text-sm text-zinc-400">
+                Disqualify teams by team code or reinstate disqualified teams.
+              </p>
+              <span className="mt-6 inline-block text-sm font-medium text-rose-300 group-hover:text-rose-200">
+                Open disqualification tools →
+              </span>
+            </Link>
+
+            <Link
               href="/admin/leaderboard"
               className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-amber-500/60 hover:bg-zinc-900/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500"
             >

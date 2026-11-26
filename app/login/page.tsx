@@ -60,14 +60,26 @@ export default function TeamLogin() {
           </button>
         </form>
 
-        {state?.error && (
+        {state?.disqualified ? (
+          <div
+            role="alert"
+            className="mt-5 rounded-xl border border-red-500/50 bg-red-950/60 p-5 text-center"
+          >
+            <h2 className="text-xl font-bold text-red-200">You are disqualified</h2>
+            {state.disqualificationReason && (
+              <p className="mt-2 text-sm text-red-200/80">
+                Reason: {state.disqualificationReason}
+              </p>
+            )}
+          </div>
+        ) : state?.error ? (
           <p
             role="alert"
             className="mt-5 rounded-lg border border-red-500/40 bg-red-950/50 px-4 py-3 text-sm text-red-300"
           >
             {state.error}
           </p>
-        )}
+        ) : null}
       </section>
     </main>
   );
