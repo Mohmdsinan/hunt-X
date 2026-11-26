@@ -9,7 +9,7 @@ export function TeamDashboardClient() {
   const [result, setResult] = useState<{
     ok: boolean;
     message: string;
-    reason?: "invalid_qr" | "duplicate";
+    reason?: "invalid_qr" | "duplicate" | "max_scans";
     scanCount?: number;
     questionCode?: string;
   } | null>(null);

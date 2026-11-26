@@ -6,7 +6,7 @@ import { getTeamSession } from "@/lib/team-auth";
 export interface TeamQrResult {
   ok: boolean;
   message: string;
-  reason?: "invalid_qr" | "duplicate";
+  reason?: "invalid_qr" | "duplicate" | "max_scans";
   scanCount?: number;
   questionCode?: string;
 }
@@ -55,6 +55,44 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
     return { ok: false, message: "Team group not assigned. Contact admin." };
   }
 
+  const { data: existingScan, error: existingScanError } = await supabase
+    .from("team_qr_scans")
+    .select("question_code")
+    .eq("team_id", session.teamId)
+    .eq("question_code", normalizedQuestionCode)
+    .maybeSingle();
+
+  if (existingScanError) {
+    console.error("Team duplicate-scan lookup failed:", existingScanError.message);
+    return { ok: false, message: "Could not check previous scans. Please try again." };
+  }
+
+  if (existingScan) {
+    return {
+      ok: false,
+      message: "This QR is already scanned.",
+      reason: "duplicate",
+    };
+  }
+
+  const { count: totalScans, error: scanCountError } = await supabase
+    .from("team_qr_scans")
+    .select("question_code", { count: "exact", head: true })
+    .eq("question_code", normalizedQuestionCode);
+
+  if (scanCountError) {
+    console.error("Global QR scan count lookup failed:", scanCountError.message);
+    return { ok: false, message: "Could not check the QR scan limit. Please try again." };
+  }
+
+  if ((totalScans ?? 0) >= 4) {
+    return {
+      ok: false,
+      message: "This QR is scanned 4 times",
+      reason: "max_scans",
+    };
+  }
+
   const { data, error } = await supabase.rpc("verify_team_qr_once", {
     p_team_id: session.teamId,
     p_question: normalizedQuestionCode,
@@ -63,8 +101,23 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
   });
 
   if (error) {
+    if (error.message.includes("MAX_SCANS_REACHED")) {
+      return {
+        ok: false,
+        message: "This QR is scanned 4 times",
+        reason: "max_scans",
+      };
+    }
     console.error("Team QR check error:", error);
     return { ok: false, message: `Database error: ${error.message}` };
+  }
+
+  if (data?.reason === "max_scans") {
+    return {
+      ok: false,
+      message: "This QR is scanned 4 times",
+      reason: "max_scans",
+    };
   }
 
   if (data?.reason === "duplicate") {
