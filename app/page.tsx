@@ -54,8 +54,8 @@ async function Leaderboard() {
     { data: teams, error: teamsError },
     { data: scans, error: scansError },
   ] = await Promise.all([
-    supabase.from("teams").select("team_code, group_name"),
-    supabase.from("team_qr_scans").select("team_code, scanned_at"),
+    supabase.from("teams").select("id, team_code, group_name"),
+    supabase.from("team_qr_scans").select("team_id, scanned_at"),
   ]);
 
   if (teamsError || scansError) {
@@ -80,22 +80,22 @@ async function Leaderboard() {
 
   const scansByTeam = new Map<string, { count: number; lastScannedAt: string }>();
   for (const scan of scans ?? []) {
-    const summary = scansByTeam.get(scan.team_code);
+    const summary = scansByTeam.get(scan.team_id);
     if (summary) {
       summary.count += 1;
       if (scan.scanned_at > summary.lastScannedAt) {
         summary.lastScannedAt = scan.scanned_at;
       }
     } else {
-      scansByTeam.set(scan.team_code, { count: 1, lastScannedAt: scan.scanned_at });
+      scansByTeam.set(scan.team_id, { count: 1, lastScannedAt: scan.scanned_at });
     }
   }
 
   const leaderboard = teams
     .map((team) => ({
       ...team,
-      qrCount: scansByTeam.get(team.team_code)?.count ?? 0,
-      lastScannedAt: scansByTeam.get(team.team_code)?.lastScannedAt ?? null,
+      qrCount: scansByTeam.get(team.id)?.count ?? 0,
+      lastScannedAt: scansByTeam.get(team.id)?.lastScannedAt ?? null,
     }))
     .sort((a, b) => {
       if (a.qrCount !== b.qrCount) return b.qrCount - a.qrCount;
