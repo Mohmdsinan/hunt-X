@@ -14,7 +14,7 @@ export default function Home() {
           >
             <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
               <Link href="/" className="text-xl font-bold">
-                Treasure Hunt
+                HuntX
               </Link>
               <div className="h-9 w-16 animate-pulse rounded bg-gray-100" />
             </div>
@@ -25,7 +25,7 @@ export default function Home() {
       </Suspense>
       <main className="flex-1 mx-auto max-w-3xl p-6 space-y-8">
         <section className="text-center space-y-4">
-          <h1 className="text-3xl font-bold">Treasure Hunt Leaderboard</h1>
+          <h1 className="text-3xl font-bold">HuntX Leaderboard</h1>
           <p className="text-gray-600">
             Scan QR codes to solve questions and earn points for your team
           </p>

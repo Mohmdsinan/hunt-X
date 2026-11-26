@@ -14,7 +14,7 @@ export default function TeamDashboard() {
           >
             <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
               <Link href="/" className="text-xl font-bold">
-                Treasure Hunt
+                HuntX
               </Link>
               <div className="h-9 w-16 animate-pulse rounded bg-gray-100" />
             </div>

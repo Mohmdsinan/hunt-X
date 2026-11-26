@@ -16,7 +16,7 @@ export function TeamHeaderClient({ initialSession }: TeamHeaderClientProps) {
     <header className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950 text-white">
       <div className="mx-auto max-w-3xl px-4 py-3 flex items-center justify-between">
         <Link href="/" className="text-xl font-bold text-white">
-          Treasure Hunt
+          HuntX
         </Link>
         <div className="flex items-center gap-4">
           {initialSession ? (
