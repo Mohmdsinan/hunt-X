@@ -17,10 +17,12 @@ export function TeamDashboardClient() {
       | "max_scans"
       | "disqualified"
       | "hunt_ended"
-      | "hunt_unavailable";
+      | "hunt_unavailable"
+      | "not_qualified";
     scanCount?: number;
     questionCode?: string;
     disqualificationReason?: string | null;
+    finalRank?: number;
   } | null>(null);
   const [checking, setChecking] = useState(false);
   const [lastScanned, setLastScanned] = useState("");
@@ -28,6 +30,9 @@ export function TeamDashboardClient() {
   const [questionProgress, setQuestionProgress] = useState<{
     questionCodes: string[];
     scannedQuestionCodes: string[];
+    isFinalist: boolean;
+    finalScanAt: string | null;
+    finalRank: number | null;
   } | null>(null);
   const [progressError, setProgressError] = useState<string | null>(null);
   const [disqualification, setDisqualification] = useState<{
@@ -188,6 +193,14 @@ export function TeamDashboardClient() {
       setResult({ ok: false, message: "Enter the question code first." });
       return;
     }
+    if (normalizedQuestionCode === "TX-00" && questionProgress && !questionProgress.isFinalist) {
+      setResult({
+        ok: false,
+        message: "You are not selected for the Final Stage.",
+        reason: "not_qualified",
+      });
+      return;
+    }
     if (!normalizedSecret) {
       setResult({ ok: false, message: "QR code is empty." });
       return;
@@ -213,6 +226,20 @@ export function TeamDashboardClient() {
       }
       if (res.reason === "disqualified") {
         setDisqualification({ reason: res.disqualificationReason ?? null });
+      }
+      if (res.ok && normalizedQuestionCode === "TX-00") {
+        setQuestionProgress((previous) =>
+          previous
+            ? {
+                ...previous,
+                finalRank: res.finalRank ?? previous.finalRank,
+                finalScanAt: new Date().toISOString(),
+                scannedQuestionCodes: previous.scannedQuestionCodes.includes("TX-00")
+                  ? previous.scannedQuestionCodes
+                  : [...previous.scannedQuestionCodes, "TX-00"],
+              }
+            : previous
+        );
       }
       if (res.reason === "invalid_qr" && wrongQrAudioRef.current) {
         wrongQrAudioRef.current.currentTime = 0;
@@ -299,6 +326,29 @@ export function TeamDashboardClient() {
               : "Checking hunt status..."}
           </p>
         ) : null}
+
+        {questionProgress?.isFinalist && (
+          <section
+            aria-live="polite"
+            className="rounded-2xl border border-amber-400/50 bg-gradient-to-br from-amber-500/20 to-yellow-500/5 p-5 shadow-lg shadow-amber-950/20"
+          >
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">
+              Final Stage Unlocked • TX-00
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-amber-100">
+              {questionProgress.finalRank !== null
+                ? `Completed! You finished #${questionProgress.finalRank}`
+                : questionProgress.finalScanAt
+                  ? "Final Stage completed!"
+                  : "Find the hidden TX-00 QR code"}
+            </h2>
+            {!questionProgress.finalScanAt && (
+              <p className="mt-1 text-sm text-amber-200/80">
+                Enter TX-00 above and scan its QR code to finish.
+              </p>
+            )}
+          </section>
+        )}
 
         <section className="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg">
           <div className="space-y-1">

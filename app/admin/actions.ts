@@ -98,6 +98,22 @@ export async function setGroup(id: string, group: string | null): Promise<Res> {
   return { ok: true, message: "Group updated." };
 }
 
+export async function setFinalist(id: string, isFinalist: boolean): Promise<Res> {
+  if (!(await isAdmin())) return NOT_ALLOWED;
+
+  const { error } = await createAdminClient()
+    .from("teams")
+    .update({ is_finalist: isFinalist })
+    .eq("id", id);
+  if (error) return { ok: false, message: dbMessage(error) };
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/manage-teams");
+  revalidatePath("/admin/qr-stats");
+  revalidatePath("/");
+  return { ok: true, message: isFinalist ? "Team selected for the Final Stage." : "Team removed from the Final Stage." };
+}
+
 export async function updateTeam(
   id: string,
   input: {

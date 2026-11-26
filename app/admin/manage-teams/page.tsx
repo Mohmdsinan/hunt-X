@@ -17,7 +17,7 @@ async function ManageTeamsContent() {
   const [teams, colleges] = await Promise.all([
     db
       .from("teams")
-      .select("id, team_code, reg_id, leader_name, group_name, college_id")
+      .select("id, team_code, reg_id, leader_name, group_name, college_id, is_finalist")
       .order("team_code"),
     db.from("colleges").select("id, name").order("name"),
   ]);

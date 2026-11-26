@@ -1,5 +1,5 @@
 "use client";
-import { deleteTeam, setGroup, updateTeam } from "./actions";
+import { deleteTeam, setFinalist, setGroup, updateTeam } from "./actions";
 import { addTeam } from "./import-actions";
 import ImportPanel from "./import-panel";
 
@@ -12,6 +12,7 @@ type Team = {
   leader_name: string;
   group_name: string | null;
   college_id: number;
+  is_finalist: boolean;
 };
 type College = { id: number; name: string };
 
@@ -265,7 +266,7 @@ export default function TeamsManager({
 
       {/* Teams table */}
       <div className="overflow-x-auto rounded border">
-        <table className="w-full min-w-[760px] text-left text-sm">
+        <table className="w-full min-w-[900px] text-left text-sm">
           <thead className="bg-gray-100 text-gray-700">
             <tr>
               <th className="p-2">Code</th>
@@ -273,6 +274,7 @@ export default function TeamsManager({
               <th className="p-2">College</th>
               <th className="p-2">Leader</th>
               <th className="p-2">Group</th>
+              <th className="p-2">Final Stage</th>
               <th className="p-2">Actions</th>
             </tr>
           </thead>
@@ -359,6 +361,21 @@ export default function TeamsManager({
                     </select>
                   </td>
 
+                  <td className="p-2">
+                    <label className="flex items-center gap-2 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={t.is_finalist}
+                        disabled={pending}
+                        onChange={(event) =>
+                          run(() => setFinalist(t.id, event.target.checked))
+                        }
+                        aria-label={`Qualified for Final Stage: ${t.team_code}`}
+                      />
+                      <span>{t.is_finalist ? "Qualified" : "Not selected"}</span>
+                    </label>
+                  </td>
+
                   <td className="space-x-2 p-2 whitespace-nowrap">
                     {editing ? (
                       <>
@@ -418,7 +435,7 @@ export default function TeamsManager({
             })}
             {filtered.length === 0 && (
               <tr>
-                <td className="p-4 text-center text-gray-500" colSpan={6}>
+                <td className="p-4 text-center text-gray-500" colSpan={7}>
                   No teams found.
                 </td>
               </tr>
