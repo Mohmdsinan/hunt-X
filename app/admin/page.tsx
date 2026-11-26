@@ -70,6 +70,19 @@ async function AdminHub() {
                 Open QR analytics →
               </span>
             </Link>
+
+            <Link
+              href="/admin/leaderboard"
+              className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-amber-500/60 hover:bg-zinc-900/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500"
+            >
+              <h3 className="text-xl font-semibold text-white">Leaderboard &amp; Team Scans</h3>
+              <p className="mt-2 text-sm text-zinc-400">
+                Review team rankings and inspect each team&apos;s scanned QR codes.
+              </p>
+              <span className="mt-6 inline-block text-sm font-medium text-amber-300 group-hover:text-amber-200">
+                Open leaderboard →
+              </span>
+            </Link>
           </div>
         </section>
       </div>
