@@ -17,7 +17,7 @@ async function LeaderboardContent() {
   const [teamsResult, scansResult, collegesResult] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, team_code, leader_name, college_id, group_name, is_finalist"),
+      .select("id, team_code, leader_name, college_id, group_name, is_finalist, is_disqualified"),
     supabase.from("team_qr_scans").select("team_id, question_code, scanned_at"),
     supabase.from("colleges").select("id, name"),
   ]);
@@ -53,10 +53,14 @@ async function LeaderboardContent() {
     (collegesResult.data ?? []).map((college) => [college.id, college.name])
   );
   const rankedTeams = (teamsResult.data ?? [])
+    .filter((team) => !team.is_disqualified)
     .map((team) => {
       const scans = scansByTeam.get(team.id) ?? [];
       const latestScan = scans.reduce<string | null>(
-        (latest, scan) => (!latest || scan.scannedAt > latest ? scan.scannedAt : latest),
+        (latest, scan) =>
+          !latest || Date.parse(scan.scannedAt) > Date.parse(latest)
+            ? scan.scannedAt
+            : latest,
         null
       );
 
@@ -73,7 +77,9 @@ async function LeaderboardContent() {
     })
     .sort((a, b) => {
       if (a.scans.length !== b.scans.length) return b.scans.length - a.scans.length;
-      if (a.latestScan && b.latestScan) return a.latestScan.localeCompare(b.latestScan);
+      if (a.latestScan && b.latestScan) {
+        return Date.parse(a.latestScan) - Date.parse(b.latestScan);
+      }
       if (a.latestScan) return -1;
       if (b.latestScan) return 1;
       return a.teamCode.localeCompare(b.teamCode);
@@ -89,6 +95,7 @@ async function LeaderboardContent() {
     isFinalist: team.isFinalist,
     scans: team.scans,
     rank: team.rank,
+    lastScanTimestamp: team.latestScan,
   }));
 
   return <LeaderboardClient teams={teams} />;

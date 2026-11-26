@@ -12,6 +12,7 @@ export type LeaderboardTeam = {
   isFinalist: boolean;
   scans: { questionCode: string; scannedAt: string }[];
   rank: number;
+  lastScanTimestamp: string | null;
 };
 
 const GROUPS = ["All", "A", "B", "C", "D"] as const;
@@ -35,15 +36,29 @@ function formatScanTime(value: string): string {
       });
 }
 
+function formatExportScanTime(value: string): string {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime())
+        ? value
+        : date.toISOString().slice(0, 19).replace("T", " ");
+}
+
 export default function LeaderboardClient({ teams }: { teams: LeaderboardTeam[] }) {
   const [search, setSearch] = useState("");
   const [groupFilter, setGroupFilter] = useState<(typeof GROUPS)[number]>("All");
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
 
+  const groupFilteredTeams = useMemo(
+    () =>
+      teams.filter(
+        (team) => groupFilter === "All" || groupCode(team.groupName) === groupFilter
+      ),
+    [groupFilter, teams]
+  );
+
   const visibleTeams = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return teams.filter((team) => {
-      if (groupFilter !== "All" && groupCode(team.groupName) !== groupFilter) return false;
+    return groupFilteredTeams.filter((team) => {
       if (!query) return true;
       return [
         team.teamCode,
@@ -55,21 +70,80 @@ export default function LeaderboardClient({ teams }: { teams: LeaderboardTeam[] 
         .toLowerCase()
         .includes(query);
     });
-  }, [groupFilter, search, teams]);
+  }, [groupFilteredTeams, search]);
+
+  function exportTopTen() {
+    const topTen = groupFilteredTeams.slice(0, 10);
+    if (topTen.length === 0) return;
+
+    const escapeCsv = (value: string | number) =>
+      `"${String(value).replaceAll('"', '""')}"`;
+    const rows = [
+      [
+        "Rank",
+        "Team Code",
+        "Group",
+        "Team Leader",
+        "College Name",
+        "No. of Scans",
+        "Total Questions",
+        "Last Scan Time (Tie-Breaker)",
+        "Scanned Codes",
+      ],
+      ...topTen.map((team, index) => {
+        const lastScanTime = team.lastScanTimestamp
+          ? formatExportScanTime(team.lastScanTimestamp)
+          : "N/A";
+        return [
+          index + 1,
+          team.teamCode,
+          team.groupName ? `Group ${groupCode(team.groupName)}` : "Group not assigned",
+          team.leaderName,
+          team.collegeName,
+          team.scans.length,
+          QUESTION_COUNT,
+          lastScanTime,
+          team.scans.map((scan) => scan.questionCode).join(", "),
+        ];
+      }),
+    ];
+    const csv = rows.map((row) => row.map(escapeCsv).join(",")).join("\r\n");
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const filterName = groupFilter === "All" ? "all" : `group-${groupFilter.toLowerCase()}`;
+    const date = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `huntx-top-10-${filterName}-${date}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
 
   return (
     <main className="min-h-screen bg-zinc-950 px-4 py-8 text-zinc-100 sm:px-6">
       <div className="mx-auto max-w-6xl space-y-7">
-        <header className="border-b border-zinc-800 pb-5">
-          <Link href="/admin" className="text-sm text-zinc-400 hover:text-white">
-            ← Back to Admin
-          </Link>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">
-            Leaderboard &amp; Team Scans
-          </h1>
-          <p className="mt-1 text-sm text-zinc-400">
-            Teams are ranked by total scans, with the earliest latest scan breaking ties.
-          </p>
+        <header className="flex flex-col gap-4 border-b border-zinc-800 pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <Link href="/admin" className="text-sm text-zinc-400 hover:text-white">
+              ← Back to Admin
+            </Link>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">
+              Leaderboard &amp; Team Scans
+            </h1>
+            <p className="mt-1 text-sm text-zinc-400">
+              Teams are ranked by total scans, with the earliest latest scan breaking ties.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={exportTopTen}
+            disabled={groupFilteredTeams.length === 0}
+            className="shrink-0 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Export Top 10 (CSV)
+          </button>
         </header>
 
         <section aria-label="Filter teams" className="space-y-4">
