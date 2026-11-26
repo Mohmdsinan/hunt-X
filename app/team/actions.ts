@@ -69,6 +69,24 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
 
   // The RPC returns a JSONB object; treat a missing/false 'ok' as a mismatch.
   if (data && data.ok) {
+    const { error: scanRecordError } = await supabase
+      .from("team_qr_scans")
+      .upsert(
+        {
+          team_code: session.teamCode,
+          question_code: normalizedQuestionCode,
+        },
+        { onConflict: "team_code,question_code", ignoreDuplicates: true }
+      );
+
+    if (scanRecordError) {
+      console.error("Could not record team QR scan:", scanRecordError.message);
+      return {
+        ok: false,
+        message: "QR verified, but the leaderboard could not be updated. Please contact an organizer.",
+      };
+    }
+
     return {
       ok: true,
       message: data.message ?? "✅ QR verified! Scan recorded.",

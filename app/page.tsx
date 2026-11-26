@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { TeamHeaderWrapper } from "@/components/TeamHeaderWrapper";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export default function Home() {
   return (
@@ -48,54 +49,84 @@ export default function Home() {
 }
 
 async function Leaderboard() {
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
+  const supabase = createAdminClient();
+  const [
+    { data: teams, error: teamsError },
+    { data: scans, error: scansError },
+  ] = await Promise.all([
+    supabase.from("teams").select("team_code, group_name"),
+    supabase.from("team_qr_scans").select("team_code, scanned_at"),
+  ]);
 
-  const { data: teams } = await supabase
-    .from("teams")
-    .select("team_code, leader_name, college_id, group_name, score")
-    .order("score", { ascending: false })
-    .limit(20);
+  if (teamsError || scansError) {
+    console.error("Leaderboard data query failed:", {
+      teams: teamsError?.message,
+      scans: scansError?.message,
+    });
+    return (
+      <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-8 text-center text-zinc-400">
+        Leaderboard is temporarily unavailable.
+      </div>
+    );
+  }
 
   if (!teams || teams.length === 0) {
     return (
-      <div className="rounded-lg border p-8 text-center text-gray-500">
+      <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-8 text-center text-zinc-400">
         No teams registered yet
       </div>
     );
   }
 
+  const scansByTeam = new Map<string, { count: number; lastScannedAt: string }>();
+  for (const scan of scans ?? []) {
+    const summary = scansByTeam.get(scan.team_code);
+    if (summary) {
+      summary.count += 1;
+      if (scan.scanned_at > summary.lastScannedAt) {
+        summary.lastScannedAt = scan.scanned_at;
+      }
+    } else {
+      scansByTeam.set(scan.team_code, { count: 1, lastScannedAt: scan.scanned_at });
+    }
+  }
+
+  const leaderboard = teams
+    .map((team) => ({
+      ...team,
+      qrCount: scansByTeam.get(team.team_code)?.count ?? 0,
+      lastScannedAt: scansByTeam.get(team.team_code)?.lastScannedAt ?? null,
+    }))
+    .sort((a, b) => {
+      if (a.qrCount !== b.qrCount) return b.qrCount - a.qrCount;
+      if (a.lastScannedAt && b.lastScannedAt) {
+        return a.lastScannedAt.localeCompare(b.lastScannedAt);
+      }
+      if (a.lastScannedAt) return -1;
+      if (b.lastScannedAt) return 1;
+      return a.team_code.localeCompare(b.team_code);
+    });
+
   return (
-    <div className="rounded-lg border overflow-hidden">
-      <table className="w-full">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Rank</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Team</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Leader</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">College</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Group</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Score</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {teams.map((team, index) => (
-            <tr key={team.team_code} className={index === 0 ? "bg-yellow-50" : "hover:bg-gray-50"}>
-              <td className="px-4 py-3 font-medium">
-                {index + 1}
-                {index === 0 && <span className="ml-1">🥇</span>}
-                {index === 1 && <span className="ml-1">🥈</span>}
-                {index === 2 && <span className="ml-1">🥉</span>}
-              </td>
-              <td className="px-4 py-3 font-mono">{team.team_code}</td>
-              <td className="px-4 py-3">{team.leader_name}</td>
-              <td className="px-4 py-3">{team.college_id}</td>
-              <td className="px-4 py-3">{team.group_name || "-"}</td>
-              <td className="px-4 py-3 font-bold">{team.score || 0}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-100">
+      <ul className="divide-y divide-zinc-800">
+        {leaderboard.map((team) => (
+          <li
+            key={team.team_code}
+            className="flex items-center justify-between gap-4 px-4 py-4 sm:px-6"
+          >
+            <div className="min-w-0">
+              <p className="font-mono font-semibold text-white">{team.team_code}</p>
+              <p className="mt-1 text-sm text-zinc-400">
+                {team.group_name ? `Group ${team.group_name}` : "Group not assigned"}
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-zinc-800 px-3 py-1.5 text-sm font-medium text-zinc-100">
+              {team.qrCount} {team.qrCount === 1 ? "QR" : "QRs"} Scanned
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
