@@ -41,8 +41,7 @@ export async function teamLogin(_prev: Res | undefined, formData: FormData): Pro
   // Create session
   await createTeamSession({
     teamId: team.id,
-    teamCode: team.team_code,
-    leaderName: team.leader_name,
+    teamCode: String(team.team_code).trim().toUpperCase(),
     groupName: team.group_name,
   });
 

@@ -19,13 +19,53 @@ export function safeEqual(a: string, b: string) {
 export interface TeamSession {
   teamId: string;
   teamCode: string;
-  leaderName: string;
   groupName?: string | null;
+}
+
+function normalizeTeamCode(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+function normalizeGroupName(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return value.trim().replace(/^group\s+/i, "").toUpperCase() || null;
+}
+
+function parseTeamSession(payload: string): TeamSession | null {
+  try {
+    const json = payload.startsWith("{")
+      ? payload
+      : Buffer.from(payload, "base64url").toString("utf8");
+    const parsed: unknown = JSON.parse(json);
+    if (typeof parsed !== "object" || parsed === null) return null;
+
+    const data = parsed as Record<string, unknown>;
+    const teamId = data.id ?? data.teamId;
+    const teamCode = data.team_code ?? data.teamCode;
+    const groupName = data.group ?? data.groupName;
+    if (typeof teamId !== "string" || typeof teamCode !== "string") return null;
+
+    return {
+      teamId,
+      teamCode: normalizeTeamCode(teamCode),
+      groupName: typeof groupName === "string" ? normalizeGroupName(groupName) : null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function createTeamSession(team: TeamSession) {
   const exp = Date.now() + MAX_AGE * 1000;
-  const value = `${JSON.stringify(team)}.${exp}.${sign(`${JSON.stringify(team)}.${exp}`)}`;
+  const teamData = Buffer.from(
+    JSON.stringify({
+      id: team.teamId,
+      team_code: normalizeTeamCode(team.teamCode),
+      group: normalizeGroupName(team.groupName),
+    })
+  ).toString("base64url");
+  const signedValue = `${teamData}.${exp}`;
+  const value = `${signedValue}.${sign(signedValue)}`;
   (await cookies()).set(COOKIE, value, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -44,22 +84,16 @@ export async function getTeamSession(): Promise<TeamSession | null> {
   const value = (await cookies()).get(COOKIE)?.value;
   if (!value) return null;
 
-  const parts = value.split(".");
-  if (parts.length !== 3) return null;
+  const parts = value.match(/^(.+)\.(\d+)\.([a-f0-9]{64})$/);
+  if (!parts) return null;
+  const [, teamData, exp, sig] = parts;
 
-  const [teamData, exp, sig] = parts;
-  if (!teamData || !exp || !sig) return null;
-
-  if (Number(exp) < Date.now()) return null;
+  if (!teamData || Number(exp) < Date.now()) return null;
 
   const expectedSig = sign(`${teamData}.${exp}`);
   if (!safeEqual(sig, expectedSig)) return null;
 
-  try {
-    return JSON.parse(teamData);
-  } catch {
-    return null;
-  }
+  return parseTeamSession(teamData);
 }
 
 export async function isTeamLoggedIn(): Promise<boolean> {

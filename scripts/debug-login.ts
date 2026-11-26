@@ -21,7 +21,7 @@ async function debugLogin(teamCode: string, password: string) {
   const { data: team, error } = await supabase
     .from('teams')
     .select('id, team_code, group_name, password, leader_name')
-    .eq('team_code', teamCode)
+    .eq('team_code', teamCode.trim().toUpperCase())
     .single();
 
   console.log('Database team:', team ? { id: team.id, code: team.team_code, group: team.group_name, password: team.password ? '***' : null } : null);

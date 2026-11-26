@@ -43,15 +43,27 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
   const { data: team, error: teamError } = await supabase
     .from("teams")
     .select("group_name")
-    .eq("team_code", session.teamCode)
+    .eq("id", session.teamId)
     .maybeSingle();
 
   if (teamError) {
-    console.error("Team group lookup failed:", teamError.message);
+    console.error("Team group lookup failed:", {
+      teamId: session.teamId,
+      code: teamError.code,
+      message: teamError.message,
+    });
     return { ok: false, message: "Could not load team details. Please try again." };
   }
 
-  if (!team || !team.group_name) {
+  if (!team) {
+    console.error("Team session references a missing database record:", {
+      teamId: session.teamId,
+      teamCode: session.teamCode,
+    });
+    return { ok: false, message: "Could not load team details. Please contact an organizer." };
+  }
+
+  if (!team.group_name) {
     return { ok: false, message: "Team group not assigned. Contact admin." };
   }
 
@@ -166,11 +178,21 @@ export async function getTeamQuestionProgress(): Promise<{
     .maybeSingle();
 
   if (teamError) {
-    console.error("Team question progress lookup failed:", teamError.message);
+    console.error("Team question progress lookup failed:", {
+      teamId: session.teamId,
+      code: teamError.code,
+      message: teamError.message,
+    });
     throw new Error("Could not load team details.");
   }
 
-  if (!team) return null;
+  if (!team) {
+    console.error("Team session references a missing database record:", {
+      teamId: session.teamId,
+      teamCode: session.teamCode,
+    });
+    return null;
+  }
 
   const groupCode = team.group_name
     ?.trim()
