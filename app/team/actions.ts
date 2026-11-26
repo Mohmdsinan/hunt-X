@@ -6,7 +6,7 @@ import { getTeamSession } from "@/lib/team-auth";
 export interface TeamQrResult {
   ok: boolean;
   message: string;
-  reason?: "invalid_qr" | "duplicate" | "max_scans" | "disqualified";
+  reason?: "invalid_qr" | "duplicate" | "max_scans" | "disqualified" | "hunt_ended" | "hunt_unavailable";
   scanCount?: number;
   questionCode?: string;
   disqualificationReason?: string | null;
@@ -44,6 +44,29 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
   }
 
   const supabase = createAdminClient();
+
+  const { data: huntStatus, error: huntStatusError } = await supabase
+    .from("hunt_status")
+    .select("is_active")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (huntStatusError || !huntStatus) {
+    console.error("Could not verify hunt status before scan:", huntStatusError?.message);
+    return {
+      ok: false,
+      message: "Hunt status could not be verified. Scanning is unavailable.",
+      reason: "hunt_unavailable",
+    };
+  }
+
+  if (!huntStatus.is_active) {
+    return {
+      ok: false,
+      message: "The hunt has ended.",
+      reason: "hunt_ended",
+    };
+  }
 
   // First, get the team's group
   const { data: team, error: teamError } = await supabase
@@ -128,6 +151,13 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
   });
 
   if (error) {
+    if (error.message.includes("HUNT_ENDED")) {
+      return {
+        ok: false,
+        message: "The hunt has ended.",
+        reason: "hunt_ended",
+      };
+    }
     if (error.message.includes("TEAM_DISQUALIFIED")) {
       return {
         ok: false,
@@ -144,6 +174,14 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
     }
     console.error("Team QR check error:", error);
     return { ok: false, message: `Database error: ${error.message}` };
+  }
+
+  if (data?.reason === "hunt_ended") {
+    return {
+      ok: false,
+      message: "The hunt has ended.",
+      reason: "hunt_ended",
+    };
   }
 
   if (data?.reason === "max_scans") {

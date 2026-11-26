@@ -4,13 +4,20 @@ import { useEffect, useRef, useState } from "react";
 import { teamLogout } from "@/app/login/actions";
 import { checkTeamQr, getTeamAccessStatus, getTeamQuestionProgress } from "./actions";
 import { QRScanner } from "@/components/QRScanner";
+import { createClient } from "@/lib/supabase/client";
 
 export function TeamDashboardClient() {
   const [questionCode, setQuestionCode] = useState("");
   const [result, setResult] = useState<{
     ok: boolean;
     message: string;
-    reason?: "invalid_qr" | "duplicate" | "max_scans" | "disqualified";
+    reason?:
+      | "invalid_qr"
+      | "duplicate"
+      | "max_scans"
+      | "disqualified"
+      | "hunt_ended"
+      | "hunt_unavailable";
     scanCount?: number;
     questionCode?: string;
     disqualificationReason?: string | null;
@@ -26,6 +33,8 @@ export function TeamDashboardClient() {
   const [disqualification, setDisqualification] = useState<{
     reason: string | null;
   } | null>(null);
+  const [huntActive, setHuntActive] = useState<boolean | null>(null);
+  const [huntStatusError, setHuntStatusError] = useState(false);
   const wrongQrAudioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
@@ -43,6 +52,90 @@ export function TeamDashboardClient() {
 
     return () => {
       active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let checkingStatus = false;
+    const supabase = createClient();
+
+    const refreshHuntStatus = async () => {
+      if (checkingStatus) return;
+      checkingStatus = true;
+      try {
+        const { data, error } = await supabase
+          .from("hunt_status")
+          .select("is_active")
+          .eq("id", 1)
+          .maybeSingle();
+
+        if (error) {
+          console.error("Could not fetch hunt status:", error.message);
+          if (active) {
+            setHuntActive(null);
+            setHuntStatusError(true);
+          }
+          return;
+        }
+        if (!data) {
+          console.error("Hunt status row is missing.");
+          if (active) {
+            setHuntActive(null);
+            setHuntStatusError(true);
+          }
+          return;
+        }
+
+        if (active) {
+          setHuntActive(data.is_active);
+          setHuntStatusError(false);
+        }
+      } catch (error: unknown) {
+        console.error("Hunt status request failed:", error);
+        if (active) {
+          setHuntActive(null);
+          setHuntStatusError(true);
+        }
+      } finally {
+        checkingStatus = false;
+      }
+    };
+
+    const channel = supabase
+      .channel("hunt-status-team-dashboard")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "hunt_status",
+          filter: "id=eq.1",
+        },
+        (payload) => {
+          const row = payload.new as Record<string, unknown>;
+          if (typeof row.is_active === "boolean") {
+            setHuntActive(row.is_active);
+            setHuntStatusError(false);
+          }
+        }
+      )
+      .subscribe((status, error) => {
+        if (error) console.error("Hunt status realtime subscription failed:", error);
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.error("Hunt status realtime is unavailable; polling will continue.");
+        }
+      });
+
+    void refreshHuntStatus();
+    const interval = window.setInterval(() => {
+      if (!document.hidden) void refreshHuntStatus();
+    }, 5_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
     };
   }, []);
 
@@ -77,6 +170,18 @@ export function TeamDashboardClient() {
   }, []);
 
   async function handleVerify(secret: string) {
+    if (huntActive !== true) {
+      setResult({
+        ok: false,
+        message:
+          huntActive === false
+            ? "The hunt has ended."
+            : "Hunt status could not be verified. Scanning is unavailable.",
+        reason: huntActive === false ? "hunt_ended" : "hunt_unavailable",
+      });
+      return;
+    }
+
     const normalizedQuestionCode = questionCode.trim().toUpperCase();
     const normalizedSecret = secret.trim();
     if (!normalizedQuestionCode) {
@@ -101,6 +206,11 @@ export function TeamDashboardClient() {
     try {
       const res = await checkTeamQr(normalizedQuestionCode, normalizedSecret);
       setResult(res);
+      if (res.reason === "hunt_ended") {
+        setHuntActive(false);
+      } else if (res.reason === "hunt_unavailable") {
+        setHuntStatusError(true);
+      }
       if (res.reason === "disqualified") {
         setDisqualification({ reason: res.disqualificationReason ?? null });
       }
@@ -165,6 +275,31 @@ export function TeamDashboardClient() {
       <div className="mx-auto w-full max-w-2xl space-y-6 p-4 sm:p-6">
         <audio ref={wrongQrAudioRef} src="/fahhhhh.mp3" preload="auto" />
 
+        {huntActive === false ? (
+          <section
+            role="alert"
+            className="rounded-2xl border border-red-500/40 bg-gradient-to-r from-red-950/80 to-amber-950/50 p-5 text-center shadow-lg"
+          >
+            <h2 className="text-xl font-bold text-red-100">The hunt has ended.</h2>
+            <p className="mt-1 text-sm text-red-200/80">
+              QR scanning is now closed.
+            </p>
+          </section>
+        ) : huntActive === null ? (
+          <p
+            role={huntStatusError ? "alert" : "status"}
+            className={`rounded-xl border p-4 text-sm ${
+              huntStatusError
+                ? "border-red-500/40 bg-red-950/40 text-red-200"
+                : "border-zinc-800 bg-zinc-900 text-zinc-400"
+            }`}
+          >
+            {huntStatusError
+              ? "Hunt status could not be verified. Scanning is locked."
+              : "Checking hunt status..."}
+          </p>
+        ) : null}
+
         <section className="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg">
           <div className="space-y-1">
             <h1 className="text-2xl font-bold tracking-tight text-white">Team Dashboard</h1>
@@ -183,15 +318,26 @@ export function TeamDashboardClient() {
               placeholder="Question code"
               value={questionCode}
               onChange={(e) => setQuestionCode(e.target.value.toUpperCase())}
+              disabled={huntActive !== true}
               autoFocus
             />
           </div>
 
-          <QRScanner
-            questionCode={questionCode}
-            onScan={handleScan}
-            disabled={checking}
-          />
+          {huntActive === true ? (
+            <QRScanner
+              questionCode={questionCode}
+              onScan={handleScan}
+              disabled={checking}
+            />
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="w-full cursor-not-allowed rounded-xl bg-blue-600 py-3.5 font-semibold text-white opacity-50"
+            >
+              Start scanning
+            </button>
+          )}
 
           {result && (
             <section

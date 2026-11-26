@@ -11,6 +11,8 @@ import {
 } from "@/lib/admin-auth";
 
 type Res = { ok: boolean; message: string };
+export type HuntStatus = { is_active: boolean; updated_at: string };
+export type HuntStatusResult = Res & { status?: HuntStatus };
 const GROUPS = ["A", "B", "C", "D"];
 const NOT_ALLOWED: Res = { ok: false, message: "Not allowed. Please log in again." };
 
@@ -43,6 +45,40 @@ export async function login(
 export async function logout() {
   await destroySession();
   redirect("/admin/login");
+}
+
+export async function setHuntActive(isActive: boolean): Promise<HuntStatusResult> {
+  if (!(await isAdmin())) return NOT_ALLOWED;
+  if (typeof isActive !== "boolean") {
+    return { ok: false, message: "Invalid hunt status." };
+  }
+
+  const { data: status, error } = await createAdminClient()
+    .from("hunt_status")
+    .update({ is_active: isActive })
+    .eq("id", 1)
+    .select("is_active, updated_at")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not update hunt status:", error.message);
+    return { ok: false, message: "Could not update hunt status. Please try again." };
+  }
+  if (!status) {
+    return {
+      ok: false,
+      message: "Hunt status is not initialized. Apply the hunt status migration.",
+    };
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/team");
+  revalidatePath("/");
+  return {
+    ok: true,
+    message: isActive ? "Hunt started." : "Hunt stopped.",
+    status,
+  };
 }
 
 export async function setGroup(id: string, group: string | null): Promise<Res> {

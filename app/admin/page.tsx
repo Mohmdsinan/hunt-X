@@ -4,13 +4,24 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import type { Metadata } from "next";
 import { isAdmin } from "@/lib/admin-auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { logout } from "./actions";
+import HuntStatusControl from "./hunt-status-control";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 async function AdminHub() {
   await connection();
   if (!(await isAdmin())) redirect("/admin/login");
+
+  const { data: huntStatus, error: huntStatusError } = await createAdminClient()
+    .from("hunt_status")
+    .select("is_active, updated_at")
+    .eq("id", 1)
+    .maybeSingle();
+  if (huntStatusError) {
+    console.error("Could not load hunt status:", huntStatusError.message);
+  }
 
   return (
     <main className="min-h-screen bg-zinc-950 px-4 py-8 text-white sm:px-6">
@@ -26,6 +37,17 @@ async function AdminHub() {
             </button>
           </form>
         </header>
+
+        <HuntStatusControl
+          initialStatus={huntStatus}
+          loadError={
+            huntStatusError
+              ? "Could not load hunt status. Apply the hunt status migration and try again."
+              : huntStatus
+                ? null
+                : "Hunt status is not initialized. Apply the hunt status migration."
+          }
+        />
 
         <section>
           <h2 className="mb-4 text-sm font-medium uppercase tracking-wider text-zinc-400">

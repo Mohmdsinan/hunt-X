@@ -1,5 +1,12 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Hunt Start / Stop
+
+Before using Hunt Status Control, apply
+[`supabase/migrations/20261126134500_global_hunt_status.sql`](./supabase/migrations/20261126134500_global_hunt_status.sql)
+to Supabase. It creates the single-row status table, enables public reads and
+Realtime, and rejects QR scan inserts while the hunt is stopped.
+
 ## Team Disqualification
 
 Before using `/admin/disqualify`, apply
