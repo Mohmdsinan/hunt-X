@@ -33,7 +33,7 @@ async function QrAnalyticsContent() {
     await Promise.all([
       supabase.from("qr_codes").select("*"),
       supabase.from("team_qr_scans").select("team_id, question_code, scanned_at"),
-      supabase.from("teams").select("id, team_code, leader_name, college_id, group_name"),
+      supabase.from("teams").select("id, team_code, leader_name, college_id, group_name, is_finalist"),
       supabase.from("colleges").select("id, name"),
     ]);
 
@@ -53,7 +53,7 @@ async function QrAnalyticsContent() {
   for (const rawRow of qrRows ?? []) {
     if (!isRecord(rawRow)) continue;
     const code = printableValue(rawRow.question_code).trim().toUpperCase();
-    if (!code) continue;
+    if (!code || code === "TX-00") continue;
     qrDetailsByCode.set(
       code,
       Object.fromEntries(
@@ -68,6 +68,7 @@ async function QrAnalyticsContent() {
 
   for (const scan of scanRows ?? []) {
     const code = scan.question_code.trim().toUpperCase();
+    if (code === "TX-00") continue;
     const team = teamById.get(scan.team_id);
     const scans = scansByCode.get(code) ?? [];
     scans.push({
@@ -101,7 +102,26 @@ async function QrAnalyticsContent() {
       scans: scansByCode.get(questionCode) ?? [],
     }));
 
-  return <QrAnalyticsClient qrs={qrs} />;
+  const finalScansByTeam = new Map(
+    (scanRows ?? [])
+      .filter((scan) => scan.question_code.trim().toUpperCase() === "TX-00")
+      .map((scan) => [scan.team_id, scan.scanned_at])
+  );
+  const finalists = (teams ?? [])
+    .filter((team) => team.is_finalist)
+    .map((team) => ({
+      teamCode: team.team_code,
+      groupName: team.group_name,
+      scannedAt: finalScansByTeam.get(team.id) ?? null,
+    }))
+    .sort((a, b) => {
+      if (a.scannedAt && b.scannedAt) return a.scannedAt.localeCompare(b.scannedAt);
+      if (a.scannedAt) return -1;
+      if (b.scannedAt) return 1;
+      return a.teamCode.localeCompare(b.teamCode);
+    });
+
+  return <QrAnalyticsClient qrs={qrs} finalists={finalists} />;
 }
 
 export default function QrAnalyticsPage() {

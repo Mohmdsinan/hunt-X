@@ -6,10 +6,14 @@ import { getTeamSession } from "@/lib/team-auth";
 export interface TeamQrResult {
   ok: boolean;
   message: string;
-  reason?: "invalid_qr" | "duplicate" | "max_scans";
+  reason?: "invalid_qr" | "duplicate" | "max_scans" | "not_qualified";
   scanCount?: number;
   questionCode?: string;
+  finalRank?: number;
 }
+
+const FINAL_QUESTION_CODE = "TX-00";
+const FINAL_SECRET = "Q8M4Z7KP";
 
 /**
  * Normalize a team/question code: strip invisible characters and whitespace,
@@ -42,7 +46,7 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
   // First, get the team's group
   const { data: team, error: teamError } = await supabase
     .from("teams")
-    .select("group_name")
+    .select("group_name, is_finalist")
     .eq("id", session.teamId)
     .maybeSingle();
 
@@ -61,6 +65,81 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
       teamCode: session.teamCode,
     });
     return { ok: false, message: "Could not load team details. Please contact an organizer." };
+  }
+
+  if (normalizedSecret === FINAL_SECRET && !team.is_finalist) {
+    return {
+      ok: false,
+      message: "You are not selected for the Final Stage.",
+      reason: "not_qualified",
+    };
+  }
+
+  if (normalizedQuestionCode === FINAL_QUESTION_CODE) {
+    if (!team.is_finalist) {
+      return {
+        ok: false,
+        message: "You are not selected for the Final Stage.",
+        reason: "not_qualified",
+      };
+    }
+
+    if (normalizedSecret !== FINAL_SECRET) {
+      return {
+        ok: false,
+        message: "❌ Not found. Check the question code and try again.",
+        reason: "invalid_qr",
+      };
+    }
+
+    const { error: insertError } = await supabase.from("team_qr_scans").insert({
+      team_id: session.teamId,
+      question_code: FINAL_QUESTION_CODE,
+    });
+
+    if (insertError) {
+      if (
+        insertError.message.includes("ALREADY_SCANNED") ||
+        insertError.code === "23505"
+      ) {
+        return {
+          ok: false,
+          message: "This QR is already scanned.",
+          reason: "duplicate",
+        };
+      }
+      if (insertError.message.includes("NOT_QUALIFIED_FOR_FINAL")) {
+        return {
+          ok: false,
+          message: "You are not selected for the Final Stage.",
+          reason: "not_qualified",
+        };
+      }
+      console.error("Final Stage QR insert failed:", insertError);
+      return { ok: false, message: "Could not record your Final Stage scan. Please try again." };
+    }
+
+    const { data: finalScans, error: rankError } = await supabase
+      .from("team_qr_scans")
+      .select("team_id, scanned_at")
+      .eq("question_code", FINAL_QUESTION_CODE)
+      .order("scanned_at", { ascending: true });
+
+    let finalRank: number | undefined;
+    if (rankError) {
+      console.error("Final Stage rank lookup failed:", rankError.message);
+    } else {
+      const rankIndex = (finalScans ?? []).findIndex((scan) => scan.team_id === session.teamId);
+      if (rankIndex >= 0) finalRank = rankIndex + 1;
+    }
+
+    return {
+      ok: true,
+      message: "✅ Final Stage QR verified! Scan recorded.",
+      scanCount: 1,
+      questionCode: FINAL_QUESTION_CODE,
+      finalRank,
+    };
   }
 
   if (!team.group_name) {
@@ -166,6 +245,9 @@ export async function checkTeamQr(questionCode: string, secret: string): Promise
 export async function getTeamQuestionProgress(): Promise<{
   questionCodes: string[];
   scannedQuestionCodes: string[];
+  isFinalist: boolean;
+  finalScanAt: string | null;
+  finalRank: number | null;
 } | null> {
   const session = await getTeamSession();
   if (!session) return null;
@@ -173,7 +255,7 @@ export async function getTeamQuestionProgress(): Promise<{
   const supabase = createAdminClient();
   const { data: team, error: teamError } = await supabase
     .from("teams")
-    .select("group_name")
+    .select("group_name, is_finalist")
     .eq("id", session.teamId)
     .maybeSingle();
 
@@ -212,8 +294,24 @@ export async function getTeamQuestionProgress(): Promise<{
     throw new Error("Could not load scanned questions.");
   }
 
+  const { data: finalScans, error: finalScansError } = await supabase
+    .from("team_qr_scans")
+    .select("team_id, scanned_at")
+    .eq("question_code", FINAL_QUESTION_CODE)
+    .order("scanned_at", { ascending: true });
+
+  if (finalScansError) {
+    console.error("Final Stage scan lookup failed:", finalScansError.message);
+    throw new Error("Could not load Final Stage progress.");
+  }
+
+  const finalRankIndex = (finalScans ?? []).findIndex((scan) => scan.team_id === session.teamId);
+
   return {
     questionCodes,
     scannedQuestionCodes: (scans ?? []).map((scan) => scan.question_code),
+    isFinalist: team.is_finalist,
+    finalScanAt: finalRankIndex >= 0 ? finalScans?.[finalRankIndex]?.scanned_at ?? null : null,
+    finalRank: finalRankIndex >= 0 ? finalRankIndex + 1 : null,
   };
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 export type AnalyticsScan = {
   teamCode: string;
@@ -17,6 +18,12 @@ export type AnalyticsQr = {
   scans: AnalyticsScan[];
 };
 
+type Finalist = {
+  teamCode: string;
+  groupName: string | null;
+  scannedAt: string | null;
+};
+
 const GROUP_FILTERS = ["All", "A", "B", "C", "D"] as const;
 
 function detailLabel(key: string): string {
@@ -29,15 +36,26 @@ function formatTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? value
-    : date.toLocaleString(undefined, {
-        dateStyle: "medium",
-        timeStyle: "medium",
-      });
+    : date.toISOString();
 }
 
-export default function QrAnalyticsClient({ qrs }: { qrs: AnalyticsQr[] }) {
+export default function QrAnalyticsClient({
+  qrs,
+  finalists,
+}: {
+  qrs: AnalyticsQr[];
+  finalists: Finalist[];
+}) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [groupFilter, setGroupFilter] = useState<(typeof GROUP_FILTERS)[number]>("All");
+
+  useEffect(() => {
+    const refreshInterval = window.setInterval(() => {
+      if (!document.hidden) router.refresh();
+    }, 15_000);
+    return () => window.clearInterval(refreshInterval);
+  }, [router]);
 
   const totalScans = qrs.reduce((total, qr) => total + qr.scans.length, 0);
   const fullCapacity = qrs.filter((qr) => qr.scans.length >= 4).length;
@@ -71,6 +89,64 @@ export default function QrAnalyticsClient({ qrs }: { qrs: AnalyticsQr[] }) {
           </div>
           <p className="text-sm text-zinc-500">Maximum 4 teams per question code</p>
         </header>
+
+        <section
+          aria-labelledby="final-stage-monitor"
+          className="rounded-2xl border border-amber-400/40 bg-gradient-to-br from-amber-950/60 to-zinc-900 p-5"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 id="final-stage-monitor" className="text-lg font-bold text-amber-100">
+                Final Stage QR (TX-00 • Q8M4Z7KP)
+              </h2>
+              <p className="mt-1 text-sm text-amber-200/70">
+                Selected finalists and their chronological finishing status. Refreshes every 15 seconds.
+              </p>
+            </div>
+            <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-sm text-amber-100">
+              {finalists.filter((team) => team.scannedAt).length}/{finalists.length} Scanned
+            </span>
+          </div>
+          {finalists.length === 0 ? (
+            <p className="mt-4 rounded-lg border border-zinc-700 bg-zinc-950/50 p-4 text-sm text-zinc-400">
+              No finalist teams selected. Select teams in Manage Teams to unlock TX-00.
+            </p>
+          ) : (
+            <ol className="mt-4 space-y-2">
+              {finalists.map((team, index) => (
+                <li
+                  key={team.teamCode}
+                  className="grid gap-2 rounded-lg border border-amber-400/15 bg-zinc-950/50 p-3 sm:grid-cols-[3.5rem_1fr_auto]"
+                >
+                  <span className="font-semibold text-amber-200">
+                    {team.scannedAt ? `#${index + 1}` : "—"}
+                  </span>
+                  <div>
+                    <p className="font-mono font-semibold text-white">{team.teamCode}</p>
+                    <p className="text-xs text-zinc-400">
+                      {team.groupName ? `Group ${team.groupName}` : "Group not assigned"}
+                    </p>
+                  </div>
+                  {team.scannedAt ? (
+                    <time
+                      dateTime={team.scannedAt}
+                      className="text-xs text-emerald-300 sm:text-right"
+                    >
+                      Scanned · {formatTime(team.scannedAt)} UTC
+                    </time>
+                  ) : (
+                    <span className="text-sm text-zinc-400 sm:text-right">Pending</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+          {finalists.some((team) => team.scannedAt) && (
+            <p className="mt-3 text-xs text-zinc-500">
+              Times are shown in UTC with millisecond precision.
+            </p>
+          )}
+        </section>
 
         <section aria-label="QR scan summary" className="grid gap-3 sm:grid-cols-3">
           <SummaryCard label="Total QR Codes" value={qrs.length} />
