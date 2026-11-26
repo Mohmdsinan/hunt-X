@@ -57,6 +57,8 @@ export async function setGroup(id: string, group: string | null): Promise<Res> {
   if (error) return { ok: false, message: dbMessage(error) };
 
   revalidatePath("/admin");
+  revalidatePath("/admin/manage-teams");
+  revalidatePath("/admin/groups");
   return { ok: true, message: "Group updated." };
 }
 
@@ -90,6 +92,8 @@ export async function updateTeam(
   if (error) return { ok: false, message: dbMessage(error) };
 
   revalidatePath("/admin");
+  revalidatePath("/admin/manage-teams");
+  revalidatePath("/admin/groups");
   return { ok: true, message: "Team saved." };
 }
 
@@ -103,5 +107,7 @@ export async function deleteTeam(id: string): Promise<Res> {
   if (error) return { ok: false, message: dbMessage(error) };
 
   revalidatePath("/admin");
+  revalidatePath("/admin/manage-teams");
+  revalidatePath("/admin/groups");
   return { ok: true, message: "Team deleted." };
 }

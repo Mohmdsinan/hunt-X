@@ -98,7 +98,11 @@ export async function commitImport(formData: FormData): Promise<Res> {
     const db = createAdminClient();
     const plan = await buildPlan(db, parsed.rows);
     const res = await savePlan(db, plan);
-    if (res.ok) revalidatePath("/admin");
+    if (res.ok) {
+      revalidatePath("/admin");
+      revalidatePath("/admin/manage-teams");
+      revalidatePath("/admin/groups");
+    }
     return res;
   } catch (e) {
     return {
@@ -147,6 +151,8 @@ export async function addTeam(input: {
     if (!res.ok) return res;
 
     revalidatePath("/admin");
+    revalidatePath("/admin/manage-teams");
+    revalidatePath("/admin/groups");
     let message = `Team added: ${row.teamCode}, group ${row.group}.`;
     if (row.similarTo) {
       message += ` Check the college name: it is similar to "${row.similarTo}".`;
