@@ -82,7 +82,7 @@ export function QRScanner({ onScan, disabled = false, questionCode }: QRScannerP
   return (
     <div className="space-y-3">
       <div className={scanning ? "relative w-full" : "hidden"}>
-        <video ref={videoRef} className="w-full rounded aspect-video object-cover" playsInline muted />
+        <video ref={videoRef} className="aspect-video w-full rounded-xl object-cover" playsInline muted />
         <div className="absolute inset-0 flex items-center justify-center bg-black/50">
           <p className="text-white text-lg font-medium">Scanning...</p>
         </div>
@@ -92,20 +92,27 @@ export function QRScanner({ onScan, disabled = false, questionCode }: QRScannerP
         <button
           onClick={startScan}
           disabled={disabled || !questionCode.trim()}
-          className="w-full rounded bg-black p-3 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full rounded-xl bg-blue-600 py-3.5 font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Start scanning
         </button>
       ) : (
-        <button onClick={stopScanner} className="w-full rounded border p-3">
+        <button
+          onClick={stopScanner}
+          className="w-full rounded-xl border border-zinc-700 py-3 text-zinc-200 transition hover:bg-zinc-800"
+        >
           Cancel scanning
         </button>
       )}
 
-      {error && <p className="text-center text-red-600 text-sm">{error}</p>}
+      {error && (
+        <p className="rounded-lg border border-red-500/40 bg-red-950/50 px-4 py-3 text-sm text-red-300">
+          {error}
+        </p>
+      )}
 
       {lastRead && (
-        <p className="text-center text-sm text-gray-500">
+        <p className="text-center text-sm text-zinc-400">
           Read from QR: <code className="font-mono">{lastRead}</code>
         </p>
       )}

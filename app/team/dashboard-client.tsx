@@ -103,36 +103,96 @@ export function TeamDashboardClient() {
     questionProgress?.questionCodes.filter((code) => scannedQuestionSet.has(code)).length ?? 0;
 
   return (
-      <main className="flex-1 mx-auto max-w-xl p-6 space-y-6">
+    <main className="flex-1 bg-zinc-950 text-white">
+      <div className="mx-auto w-full max-w-2xl space-y-6 p-4 sm:p-6">
         <audio ref={wrongQrAudioRef} src="/fahhhhh.mp3" preload="auto" />
-        <section className="text-center space-y-2">
-          <h1 className="text-2xl font-bold">Team Dashboard</h1>
-          <p className="text-gray-600">Enter question code and scan the QR code at the location</p>
+
+        <section className="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold tracking-tight text-white">Team Dashboard</h1>
+            <p className="text-sm text-zinc-400">
+              Enter question code and scan the QR code at the location
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="question-code" className="block text-sm font-medium text-zinc-200">
+              Question Code
+            </label>
+            <input
+              id="question-code"
+              className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 font-mono uppercase tracking-wider text-white placeholder-zinc-500 transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              placeholder="Question code"
+              value={questionCode}
+              onChange={(e) => setQuestionCode(e.target.value.toUpperCase())}
+              autoFocus
+            />
+          </div>
+
+          <QRScanner
+            questionCode={questionCode}
+            onScan={handleScan}
+            disabled={checking}
+          />
+
+          {result && (
+            <section
+              className={`rounded-xl border p-4 text-center ${
+                result.reason === "duplicate"
+                  ? "border-amber-500/30 bg-amber-500/10"
+                  : result.ok
+                    ? "border-green-500/30 bg-green-500/10"
+                    : "border-red-500/30 bg-red-500/10"
+              }`}
+            >
+              <p
+                className={`font-medium ${
+                  result.reason === "duplicate"
+                    ? "text-amber-300"
+                    : result.ok
+                      ? "text-green-300"
+                      : "text-red-300"
+                }`}
+              >
+                {result.message}
+              </p>
+              {result.ok && result.scanCount !== undefined && (
+                <p className="mt-1 text-sm text-green-300">
+                  This QR has been scanned {result.scanCount} time{result.scanCount !== 1 ? "s" : ""}
+                </p>
+              )}
+              {lastScanned && (
+                <p className="mt-2 text-xs text-zinc-400">
+                  Scanned: <code className="font-mono">{lastScanned}</code>
+                </p>
+              )}
+            </section>
+          )}
         </section>
 
         {questionProgress && (
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">Questions Progress</h2>
-              <span className="text-sm text-zinc-400">
+              <h2 className="text-lg font-semibold text-white">Questions Progress</h2>
+              <span className="rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1 text-sm text-zinc-300">
                 {scannedProgressCount}/{questionProgress.questionCodes.length} scanned
               </span>
             </div>
             {questionProgress.questionCodes.length > 0 ? (
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+              <div className="grid grid-cols-3 gap-2.5">
                 {questionProgress.questionCodes.map((code) => {
                   const scanned = scannedQuestionSet.has(code);
                   return (
                     <div
                       key={code}
-                      className={`rounded-lg border p-3 ${
+                      className={`rounded-xl border p-3 transition ${
                         scanned
-                          ? "border-emerald-500/50 bg-emerald-950/40"
-                          : "border-zinc-800 bg-zinc-900"
+                          ? "border-emerald-500/50 bg-emerald-950/40 text-emerald-300"
+                          : "border-zinc-800/80 bg-zinc-900/70 text-zinc-400"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono font-semibold text-white">{code}</span>
+                        <span className="font-mono font-bold text-white">{code}</span>
                         {scanned && (
                           <span
                             aria-label="Scanned"
@@ -142,80 +202,24 @@ export function TeamDashboardClient() {
                           </span>
                         )}
                       </div>
-                      <p className={`mt-2 text-xs ${scanned ? "text-emerald-300" : "text-zinc-500"}`}>
-                        {scanned ? "Scanned" : "Not Scanned"}
-                      </p>
+                      <p className="mt-2 text-xs">{scanned ? "Scanned" : "Not Scanned"}</p>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 text-sm text-zinc-400">
+              <p className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 text-sm text-zinc-400">
                 This team has no group assigned.
               </p>
             )}
           </section>
         )}
         {progressError && (
-          <p role="alert" className="rounded-lg border border-red-800 bg-red-950/40 p-3 text-sm text-red-300">
+          <p role="alert" className="rounded-xl border border-red-800 bg-red-950/40 p-3 text-sm text-red-300">
             {progressError}
           </p>
         )}
-
-        {/* Question Code Input */}
-        <section className="rounded-lg border p-4 space-y-3">
-          <h2 className="text-lg font-semibold">Question Code</h2>
-          <input
-            className="w-full rounded border p-3 text-lg font-mono uppercase tracking-wider"
-            placeholder="e.g., C-01"
-            value={questionCode}
-            onChange={(e) => setQuestionCode(e.target.value.toUpperCase())}
-            autoFocus
-          />
-        </section>
-
-        {/* QR Scanner */}
-        <section className="rounded-lg border p-4 space-y-3">
-          <h2 className="text-lg font-semibold">QR Scanner</h2>
-          <QRScanner
-            questionCode={questionCode}
-            onScan={handleScan}
-            disabled={checking}
-          />
-        </section>
-
-        {/* Result */}
-        {result && (
-          <section
-            className={`rounded-lg border p-4 text-center ${
-              result.reason === "duplicate"
-                ? "border-amber-500/30 bg-amber-500/10"
-                : result.ok
-                  ? "border-green-500/30 bg-green-500/10"
-                  : "border-red-500/30 bg-red-500/10"
-            }`}
-          >
-            <p className={`font-medium ${
-              result.reason === "duplicate"
-                ? "text-amber-300"
-                : result.ok
-                  ? "text-green-300"
-                  : "text-red-300"
-            }`}>
-              {result.message}
-            </p>
-            {result.ok && result.scanCount !== undefined && (
-              <p className="text-sm text-green-300 mt-1">
-                This QR has been scanned {result.scanCount} time{result.scanCount !== 1 ? 's' : ''}
-              </p>
-            )}
-            {lastScanned && (
-              <p className="text-xs text-zinc-400 mt-2">
-                Scanned: <code className="font-mono">{lastScanned}</code>
-              </p>
-            )}
-          </section>
-        )}
-      </main>
+      </div>
+    </main>
   );
 }
