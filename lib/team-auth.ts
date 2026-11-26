@@ -20,6 +20,7 @@ export interface TeamSession {
   teamId: string;
   teamCode: string;
   leaderName: string;
+  groupName?: string | null;
 }
 
 export async function createTeamSession(team: TeamSession) {

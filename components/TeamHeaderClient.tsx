@@ -21,9 +21,16 @@ export function TeamHeaderClient({ initialSession }: TeamHeaderClientProps) {
         <div className="flex items-center gap-4">
           {initialSession ? (
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium">
-                {initialSession.teamCode} - {initialSession.leaderName}
-              </span>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">
+                  {initialSession.teamCode} - {initialSession.leaderName}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {initialSession.groupName
+                    ? `Group ${initialSession.groupName}`
+                    : "Group not assigned"}
+                </span>
+              </div>
               <Link
                 href="/team"
                 className="text-sm rounded bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700"

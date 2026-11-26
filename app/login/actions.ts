@@ -43,6 +43,7 @@ export async function teamLogin(_prev: Res | undefined, formData: FormData): Pro
     teamId: team.id,
     teamCode: team.team_code,
     leaderName: team.leader_name,
+    groupName: team.group_name,
   });
 
   revalidatePath("/");
